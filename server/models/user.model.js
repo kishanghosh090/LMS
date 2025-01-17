@@ -80,16 +80,47 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
 // hasing the password-----
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
-    next();
+    return next();
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
+// comparing the password------
+userSchema.methods.isPasswordMatch = async function (password) {
+  return await bcrypt.compare(password, this.password);
+};
+
+// reset password token-----
+userSchema.methods.getResetPasswordToken = function () {
+  const resetToken = crypto.randomBytes(20).toString("hex");
+  this.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+  this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+  return resetToken;
+};
+
+// update last active time------
+userSchema.methods.updateLastActive = function () {
+  this.lastActive = Date.now();
+  return this.lastActive({ validateBeforeSave: false });
+};
+
+// virtual field for enrollerd courses
+userSchema.virtual("totalEnrolledCourses").get(function () {
+  return this.enrolledCourses.length;
+});
+
+// export the model---------
 export const User = mongoose.model("User", userSchema);
