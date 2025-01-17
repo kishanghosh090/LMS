@@ -22,12 +22,16 @@ class DatabaseConnection {
       console.log("Database connection error");
       console.log("====================================");
     });
-    mongoose.connection.on("disconnected", () => {
+    mongoose.connection.on("disconnected", async () => {
       this.isConnected = false;
       console.log("====================================");
       console.log("Database  disconnected");
       console.log("====================================");
       // TDOO: attempt to reconnection
+      await this.handleDisconnection();
+    });
+    process.on("SIGTERM", async () => {
+      await this.handleAppTermination();
     });
   }
 
@@ -71,6 +75,40 @@ class DatabaseConnection {
         }, RETRY_INTERVAL);
       });
       return this.connect();
+    } else {
+      console.log(`FAILED TO CONNECT TO DATABASE ${MAX_RETRIES} TIMES`);
+      process.exit(1);
     }
   }
+  async handleDisconnection() {
+    if (this.retryCount < MAX_RETRIES) {
+      console.log(`Attempting to reconnect to database...`);
+      this.connect();
+    }
+  }
+  async handleAppTermination() {
+    try {
+      await mongoose.connection.close();
+      console.log("MongoDB connection closed through app termination");
+    } catch (error) {
+      console.error("Error closing MongoDB connection:", error);
+      process.exit(1);
+    }
+  }
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      readyState: mongoose.connection.readyState,
+      host: mongoose.connection.host,
+      name: mongoose.connection.name,
+    };
+  }
 }
+
+// create a singleton instance
+
+const dbConnection = new DatabaseConnection();
+
+// export the singleton instance
+export default dbConnection.connect.bind(dbConnection);
+export const getDBStatus = dbConnection.getConnectionStatus.bind(dbConnection);
