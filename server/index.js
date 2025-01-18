@@ -63,6 +63,8 @@ app.use((error, req, res, next) => {
 });
 
 // API Routes
+import healthCheck from "./routes/health.routes.js";
+app.use("/api/v1/health", healthCheck);
 
 // it should be always at bottom
 app.use((req, res) => {
